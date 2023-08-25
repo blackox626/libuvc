@@ -33,7 +33,7 @@
 *********************************************************************/
 #include <stdio.h>
 #include <opencv2/highgui/highgui_c.h>
-
+#include <unistd.h>
 #include "libuvc/libuvc.h"
 
 void cb(uvc_frame_t *frame, void *ptr) {
@@ -41,7 +41,7 @@ void cb(uvc_frame_t *frame, void *ptr) {
   uvc_error_t ret;
   IplImage* cvImg;
 
-  printf("callback! length = %u, ptr = %d\n", frame->data_bytes, (int) ptr);
+//  printf("callback! length = %u, ptr = %d\n", frame->data_bytes, (int) ptr);
 
   bgr = uvc_allocate_frame(frame->width * frame->height * 3);
   if (!bgr) {
@@ -115,7 +115,7 @@ int main(int argc, char **argv) {
       if (res < 0) {
         uvc_perror(res, "get_mode");
       } else {
-        res = uvc_start_streaming(devh, &ctrl, cb, 12345, 0);
+        res = uvc_start_streaming(devh, &ctrl, cb, (void *)12345, 0);
 
         if (res < 0) {
           uvc_perror(res, "start_streaming");

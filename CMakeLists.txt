@@ -1,4 +1,10 @@
 cmake_minimum_required(VERSION 3.1)
+
+#set(CMAKE_C_STANDARD 11)
+#set(CMAKE_C_STANDARD_REQUIRED True)
+#set(CMAKE_CXX_STANDARD 11)
+#set(CMAKE_CXX_STANDARD_REQUIRED True)
+
 project(libuvc
   VERSION 0.0.7
   LANGUAGES C
@@ -144,18 +150,38 @@ foreach(target_name IN LISTS UVC_TARGETS)
 endforeach()
 
 if(BUILD_EXAMPLE)
+
+  include_directories ("/opt/homebrew/Cellar/opencv/4.8.0_1/include/opencv4/")
+
+  find_package(OpenCVPkg REQUIRED
+          COMPONENTS
+          opencv_core
+          opencv_highgui
+  )
+
   add_executable(example src/example.c)
+
+  target_compile_options(example
+          PRIVATE $<$<COMPILE_LANGUAGE:C,CXX>:-std=c++11 -x c++>
+  )
+
   find_package(Threads)
   target_link_libraries(example
     PRIVATE
       LibUVC::UVC
       Threads::Threads
+          opencv_core
+          opencv_highgui
   )
+
 endif()
 
 if(BUILD_TEST)
-  # OpenCV defines targets with transitive dependencies not with namespaces but using opencv_ prefix. 
+  # OpenCV defines targets with transitive dependencies not with namespaces but using opencv_ prefix.
   # This targets provide necessary include directories and linked flags.
+
+  include_directories ("/opt/homebrew/Cellar/opencv/4.8.0_1/include/opencv4/")
+
   find_package(OpenCVPkg REQUIRED
     COMPONENTS
       opencv_core
@@ -163,6 +189,11 @@ if(BUILD_TEST)
   )
 
   add_executable(uvc_test src/test.c)
+
+  target_compile_options(uvc_test
+          PRIVATE $<$<COMPILE_LANGUAGE:C,CXX>:-std=c++11 -x c++>
+  )
+
   target_link_libraries(uvc_test
     PRIVATE
       LibUVC::UVC
