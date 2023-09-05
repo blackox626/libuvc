@@ -3,89 +3,90 @@
 #include <opencv2/highgui/highgui_c.h>
 #include <opencv2/core/core_c.h>
 #include <dispatch/dispatch.h>
+#include "libuvc/libuvc_internal.h"
 
-IplImage* cvImg;
+IplImage *cvImg;
 
 /* This callback function runs once per frame. Use it to perform any
  * quick processing you need, or have it put the frame into your application's
  * input queue. If this function takes too long, you'll start losing frames. */
 void cb(uvc_frame_t *frame, void *ptr) {
-  uvc_frame_t *bgr;
-  uvc_error_t ret;
+    uvc_frame_t *bgr;
+    uvc_error_t ret;
 
-  enum uvc_frame_format *frame_format = (enum uvc_frame_format *)ptr;
-  /* FILE *fp;
-   * static int jpeg_count = 0;
-   * static const char *H264_FILE = "iOSDevLog.h264";
-   * static const char *MJPEG_FILE = ".jpeg";
-   * char filename[16]; */
+    enum uvc_frame_format *frame_format = (enum uvc_frame_format *) ptr;
+    /* FILE *fp;
+     * static int jpeg_count = 0;
+     * static const char *H264_FILE = "iOSDevLog.h264";
+     * static const char *MJPEG_FILE = ".jpeg";
+     * char filename[16]; */
 
-  /* We'll convert the image from YUV/JPEG to BGR, so allocate space */
-  bgr = uvc_allocate_frame(frame->width * frame->height * 3);
-  bgr->frame_format = UVC_FRAME_FORMAT_BGR;
-  if (!bgr) {
-    printf("unable to allocate bgr frame!\n");
-    return;
-  }
-
-  printf("callback! frame_format = %d, width = %d, height = %d, length = %lu, ptr = %p\n",
-    frame->frame_format, frame->width, frame->height, frame->data_bytes, ptr);
-
-  switch (frame->frame_format) {
-  case UVC_FRAME_FORMAT_H264:
-    /* use `ffplay H264_FILE` to play */
-    /* fp = fopen(H264_FILE, "a");
-     * fwrite(frame->data, 1, frame->data_bytes, fp);
-     * fclose(fp); */
-    break;
-  case UVC_COLOR_FORMAT_MJPEG:
-    /* sprintf(filename, "%d%s", jpeg_count++, MJPEG_FILE);
-     * fp = fopen(filename, "w");
-     * fwrite(frame->data, 1, frame->data_bytes, fp);
-     * fclose(fp); */
-      ret = uvc_any2rgb(frame, bgr);
-          if (ret) {
-              uvc_perror(ret, "uvc_any2rgb");
-              uvc_free_frame(bgr);
-              return;
-          }
-    break;
-  case UVC_COLOR_FORMAT_YUYV:
-    /* Do the BGR conversion */
-
-    ret = uvc_any2bgr(frame, bgr);
-
-    printf("UVC_COLOR_FORMAT_YUYV! %zu \n",bgr->data_bytes);
-
-    if (ret) {
-      uvc_perror(ret, "uvc_any2bgr");
-      uvc_free_frame(bgr);
-      printf("UVC_COLOR_FORMAT_YUYV error ! ");
-      return;
+    /* We'll convert the image from YUV/JPEG to BGR, so allocate space */
+    bgr = uvc_allocate_frame(frame->width * frame->height * 3);
+    bgr->frame_format = UVC_FRAME_FORMAT_BGR;
+    if (!bgr) {
+        printf("unable to allocate bgr frame!\n");
+        return;
     }
-    break;
-  default:
-    break;
-  }
 
-  if (frame->sequence % 30 == 0) {
-    printf(" * got image %u\n",  frame->sequence);
-  }
+//  printf("callback! frame_format = %d, width = %d, height = %d, length = %lu, ptr = %p\n",
+//    frame->frame_format, frame->width, frame->height, frame->data_bytes, ptr);
 
-  /* Call a user function:
-   *
-   * my_type *my_obj = (*my_type) ptr;
-   * my_user_function(ptr, bgr);
-   * my_other_function(ptr, bgr->data, bgr->width, bgr->height);
-   */
+    switch (frame->frame_format) {
+        case UVC_FRAME_FORMAT_H264:
+            /* use `ffplay H264_FILE` to play */
+            /* fp = fopen(H264_FILE, "a");
+             * fwrite(frame->data, 1, frame->data_bytes, fp);
+             * fclose(fp); */
+            break;
+        case UVC_COLOR_FORMAT_MJPEG:
+            /* sprintf(filename, "%d%s", jpeg_count++, MJPEG_FILE);
+             * fp = fopen(filename, "w");
+             * fwrite(frame->data, 1, frame->data_bytes, fp);
+             * fclose(fp); */
+            ret = uvc_any2rgb(frame, bgr);
+            if (ret) {
+                uvc_perror(ret, "uvc_any2rgb");
+                uvc_free_frame(bgr);
+                return;
+            }
+            break;
+        case UVC_COLOR_FORMAT_YUYV:
+            /* Do the BGR conversion */
 
-  /* Call a C++ method:
-   *
-   * my_type *my_obj = (*my_type) ptr;
-   * my_obj->my_func(bgr);
-   */
+            ret = uvc_any2bgr(frame, bgr);
 
-  /* Use opencv.highgui to display the image:*/
+            printf("UVC_COLOR_FORMAT_YUYV! %zu \n", bgr->data_bytes);
+
+            if (ret) {
+                uvc_perror(ret, "uvc_any2bgr");
+                uvc_free_frame(bgr);
+                printf("UVC_COLOR_FORMAT_YUYV error ! ");
+                return;
+            }
+            break;
+        default:
+            break;
+    }
+
+    if (frame->sequence % 30 == 0) {
+        printf(" * got image %u\n", frame->sequence);
+    }
+
+    /* Call a user function:
+     *
+     * my_type *my_obj = (*my_type) ptr;
+     * my_user_function(ptr, bgr);
+     * my_other_function(ptr, bgr->data, bgr->width, bgr->height);
+     */
+
+    /* Call a C++ method:
+     *
+     * my_type *my_obj = (*my_type) ptr;
+     * my_obj->my_func(bgr);
+     */
+
+    /* Use opencv.highgui to display the image:*/
 
     //IplImage* cvImg;
     cvImg = cvCreateImageHeader(
@@ -95,7 +96,7 @@ void cb(uvc_frame_t *frame, void *ptr) {
 
     cvSetData(cvImg, bgr->data, bgr->width * 3);
 
-    cvCvtColor(cvImg,cvImg,CV_RGB2BGR);
+    cvCvtColor(cvImg, cvImg, CV_RGB2BGR);
 
 //    dispatch_async(dispatch_get_main_queue(), ^{
 //        printf("cvNamedWindow test \n");
@@ -116,8 +117,8 @@ void display() {
     sleep(1);
     while (true) {
 
-        if(cvImg ) {
-            printf("cvNamedWindow test \n");
+        if (cvImg) {
+            //printf("cvNamedWindow test \n");
 
             cvNamedWindow("Test", CV_WINDOW_AUTOSIZE);
             cvShowImage("Test", cvImg);
@@ -130,52 +131,59 @@ void display() {
 
 int main(int argc, char **argv) {
 
-  uvc_context_t *ctx;
-  uvc_device_t *dev;
-  uvc_device_handle_t *devh;
-  uvc_stream_ctrl_t ctrl;
-  uvc_error_t res;
+    uvc_context_t *ctx;
+    uvc_device_t *dev;
+    uvc_device_handle_t *devh;
+    uvc_stream_ctrl_t ctrl;
+    uvc_error_t res;
 
-  /* Initialize a UVC service context. Libuvc will set up its own libusb
-   * context. Replace NULL with a libusb_context pointer to run libuvc
-   * from an existing libusb context. */
-  res = uvc_init(&ctx, NULL);
+    /* Initialize a UVC service context. Libuvc will set up its own libusb
+     * context. Replace NULL with a libusb_context pointer to run libuvc
+     * from an existing libusb context. */
+    res = uvc_init(&ctx, NULL);
 
-  if (res < 0) {
-    uvc_perror(res, "uvc_init");
-    return res;
-  }
+    libusb_set_debug(ctx->usb_ctx, LIBUSB_LOG_LEVEL_WARNING);
 
-  puts("UVC initialized");
+    const struct libusb_version *verison = libusb_get_version();
 
-  /* Locates the first attached UVC device, stores in dev */
-  res = uvc_find_device(
-      ctx, &dev,
-      0, 0, NULL); /* filter devices: vendor_id, product_id, "serial_num" */
-
-  if (res < 0) {
-    uvc_perror(res, "uvc_find_device"); /* no devices found */
-  } else {
-    puts("Device found");
-
-    /* Try to open the device: requires exclusive access */
-    res = uvc_open(dev, &devh);
+    printf("version info ----->>>>> major: %d,minor: %d,micro: %d,nano: %d,rc:%s,describe: %s \n", verison->major,
+           verison->minor, verison->micro, verison->nano, verison->rc, verison->describe);
 
     if (res < 0) {
-      uvc_perror(res, "uvc_open"); /* unable to open device */
-    } else {
-      puts("Device opened");
+        uvc_perror(res, "uvc_init");
+        return res;
+    }
 
-      /* Print out a message containing all the information that libuvc
-       * knows about the device */
-      uvc_print_diag(devh, stderr);
+    puts("UVC initialized");
+
+    /* Locates the first attached UVC device, stores in dev */
+    res = uvc_find_device(
+            ctx, &dev,
+            0, 0, NULL); /* filter devices: vendor_id, product_id, "serial_num" */
+
+    if (res < 0) {
+        uvc_perror(res, "uvc_find_device"); /* no devices found */
+    } else {
+        puts("Device found");
+
+        /* Try to open the device: requires exclusive access */
+        res = uvc_open(dev, &devh);
+
+        if (res < 0) {
+            uvc_perror(res, "uvc_open"); /* unable to open device */
+        } else {
+            puts("Device opened");
+
+            /* Print out a message containing all the information that libuvc
+             * knows about the device */
+            uvc_print_diag(devh, stderr);
 
 //      const uvc_format_desc_t *format_desc = uvc_get_format_descs(devh);
 //      const uvc_frame_desc_t *frame_desc = format_desc->frame_descs;
-      enum uvc_frame_format frame_format = UVC_COLOR_FORMAT_MJPEG;
-      int width = 3840;
-      int height = 2160;
-      int fps = 30;
+            enum uvc_frame_format frame_format = UVC_COLOR_FORMAT_MJPEG;
+            int width = 3840;
+            int height = 2160;
+            int fps = 30;
 
 //      switch (format_desc->bDescriptorSubtype) {
 //      case UVC_VS_FORMAT_MJPEG:
@@ -195,30 +203,30 @@ int main(int argc, char **argv) {
 //        fps = 10000000 / frame_desc->dwDefaultFrameInterval;
 //      }
 
-      printf("\nFirst format: (%4s) %dx%d %dfps\n", "mjpg", width, height, fps);
+            printf("\nFirst format: (%4s) %dx%d %dfps\n", "mjpg", width, height, fps);
 
-      /* Try to negotiate first stream profile */
-      res = uvc_get_stream_ctrl_format_size(
-          devh, &ctrl, /* result stored in ctrl */
-          frame_format,
-          width, height, fps /* width, height, fps */
-      );
+            /* Try to negotiate first stream profile */
+            res = uvc_get_stream_ctrl_format_size(
+                    devh, &ctrl, /* result stored in ctrl */
+                    frame_format,
+                    width, height, fps /* width, height, fps */
+            );
 
-      /* Print out the result */
-      uvc_print_stream_ctrl(&ctrl, stderr);
+            /* Print out the result */
+            uvc_print_stream_ctrl(&ctrl, stderr);
 
-      if (res < 0) {
-        uvc_perror(res, "get_mode"); /* device doesn't provide a matching stream */
-      } else {
-        /* Start the video stream. The library will call user function cb:
-         *   cb(frame, (void *) 12345)
-         */
-        res = uvc_start_streaming(devh, &ctrl, cb, (void *) 12345, 0);
+            if (res < 0) {
+                uvc_perror(res, "get_mode"); /* device doesn't provide a matching stream */
+            } else {
+                /* Start the video stream. The library will call user function cb:
+                 *   cb(frame, (void *) 12345)
+                 */
+                res = uvc_start_streaming(devh, &ctrl, cb, (void *) 12345, 0);
 
-        if (res < 0) {
-          uvc_perror(res, "start_streaming"); /* unable to start stream */
-        } else {
-          puts("Streaming...");
+                if (res < 0) {
+                    uvc_perror(res, "start_streaming"); /* unable to start stream */
+                } else {
+                    puts("Streaming...");
 
 //          /* enable auto exposure - see uvc_set_ae_mode documentation */
 //          puts("Enabling auto exposure ...");
@@ -242,30 +250,30 @@ int main(int argc, char **argv) {
 //          }
 
 
-            display();
+                    display();
 
-          //sleep(10); /* stream for 10 seconds */
+                    //sleep(10); /* stream for 10 seconds */
 
-          /* End the stream. Blocks until last callback is serviced */
-          uvc_stop_streaming(devh);
-          puts("Done streaming.");
+                    /* End the stream. Blocks until last callback is serviced */
+                    uvc_stop_streaming(devh);
+                    puts("Done streaming.");
+                }
+            }
+
+            /* Release our handle on the device */
+            uvc_close(devh);
+            puts("Device closed");
         }
-      }
 
-      /* Release our handle on the device */
-      uvc_close(devh);
-      puts("Device closed");
+        /* Release the device descriptor */
+        uvc_unref_device(dev);
     }
 
-    /* Release the device descriptor */
-    uvc_unref_device(dev);
-  }
+    /* Close the UVC context. This closes and cleans up any existing device handles,
+     * and it closes the libusb context if one was not provided. */
+    uvc_exit(ctx);
+    puts("UVC exited");
 
-  /* Close the UVC context. This closes and cleans up any existing device handles,
-   * and it closes the libusb context if one was not provided. */
-  uvc_exit(ctx);
-  puts("UVC exited");
-
-  return 0;
+    return 0;
 }
 
