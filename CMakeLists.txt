@@ -28,7 +28,7 @@ if(NOT CMAKE_BUILD_TARGET)
 endif()
 
 option(BUILD_EXAMPLE "Build example program" ON)
-option(BUILD_TEST "Build test program" OFF)
+option(BUILD_TEST "Build test program" ON)
 option(ENABLE_UVC_DEBUGGING "Enable UVC debugging" OFF)
 
 set(libuvc_DESCRIPTION "A cross-platform library for USB video devices")
@@ -48,7 +48,7 @@ set(SOURCES
 find_package(LibUSB)
 
 # JpegPkg name to differ from shipped with CMake
-find_package(JpegPkg QUIET)
+find_package(JPEG QUIET)
 if(JPEG_FOUND)
   message(STATUS "Building libuvc with JPEG support.")
   set(LIBUVC_HAS_JPEG TRUE)
@@ -161,7 +161,7 @@ if(BUILD_EXAMPLE)
           opencv_highgui
   )
 
-  find_package(LibUSB)
+#  find_package(LibUSB)
 
   add_executable(example src/example.c)
 
@@ -187,11 +187,11 @@ if(BUILD_TEST)
 
   include_directories ("/opt/homebrew/Cellar/opencv/4.8.0_1/include/opencv4/")
 
-  find_package(OpenCVPkg REQUIRED
-    COMPONENTS
-      opencv_core
-      opencv_highgui
-  )
+#  find_package(OpenCVPkg REQUIRED
+#    COMPONENTS
+#      opencv_core
+#      opencv_highgui
+#  )
 
   add_executable(uvc_test src/test.c)
 
