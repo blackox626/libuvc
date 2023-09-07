@@ -27,3 +27,14 @@ Then you can start them with `./example` and `./uvc_test` respectively. Note tha
 The documentation for `libuvc` can currently be found at https://libuvc.github.io/.
 
 Happy hacking!
+
+
+## Debuging with libuvc
+
+```
+option(BUILD_EXAMPLE "Build example program" ON)
+option(BUILD_TEST "Build test program" ON)
+option(ENABLE_UVC_DEBUGGING "Enable UVC debugging" ON)
+```
+
+`Clion -> Edit Configurations -> Run with root privileges`
