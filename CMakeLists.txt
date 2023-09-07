@@ -151,8 +151,6 @@ endforeach()
 
 if(BUILD_EXAMPLE)
 
-  include_directories ("/opt/homebrew/Cellar/libusb/1.0.26/include/libusb-1.0/")
-
   include_directories ("/opt/homebrew/Cellar/opencv/4.8.0_1/include/opencv4/")
 
   find_package(OpenCVPkg REQUIRED
@@ -160,8 +158,6 @@ if(BUILD_EXAMPLE)
           opencv_core
           opencv_highgui
   )
-
-#  find_package(LibUSB)
 
   add_executable(example src/example.c)
 
