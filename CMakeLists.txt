@@ -137,6 +137,9 @@ foreach(target_name IN LISTS UVC_TARGETS)
       PRIVATE
         UVC_DEBUGGING
     )
+
+#    非android环境不需要 log lib
+
 #    find_library(
 #            log-lib
 #            log
