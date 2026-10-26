@@ -45,7 +45,7 @@ The `example` program captures through libuvc/libusb and displays frames with
 OpenCV. The example requests full-HD MJPEG at 30 fps, preferring 1920×1080.
 If that mode is unavailable, it tries 1080×1920 and rotates the preview to
 1920×1080.
-MJPEG is decoded to RGB and converted to BGR for OpenCV. OpenCV's `core`, `highgui`, and `imgproc` components are
+MJPEG is decoded to RGB and converted to BGR for OpenCV. OpenCV's `core`, `highgui`, `imgproc`, and `videoio` components are
 required; use `OpenCV_DIR` if OpenCV is not installed in a standard location.
 
 ```sh
@@ -70,3 +70,43 @@ macOS with the Swift compiler installed to build and open a native preview:
 
 Allow camera access when macOS prompts. This preview selects `HD CAMERA` or
 another external camera and remembers the rotation set with its toolbar buttons.
+
+### MP4 recording with the camera microphone (macOS)
+
+Use the system audio/video mode to record the HD CAMERA image and its own
+microphone together. This does not fall back to the Mac microphone.
+
+```sh
+./tools/record-camera.sh
+```
+
+The launcher builds an app bundle with camera/microphone privacy descriptions,
+then opens `example --system-av` without root. Allow both permissions when
+prompted. For an already authorized terminal, `./build/example --system-av`
+also works. Close libuvc preview before starting system mode; after forced
+termination of a libuvc process, USB reconnection may be necessary.
+
+Press **S** to start/stop recording. **Q**, **Esc**, or closing the window
+finalizes the file. The title shows `REC` during recording. H.264/AAC MP4 files
+are saved in `recordings/`. **R** rotates the preview; rotation is locked while
+recording. Do not force-kill the app during recording.
+
+FFmpeg is required (`brew install ffmpeg`). `LIBUVC_FFMPEG` overrides its path;
+`LIBUVC_AUDIO_DEVICE` optionally selects another microphone explicitly. Default
+is `HD CAMERA`. Audio and video use software timing; startup audio is trimmed
+and video is paced by elapsed time. Merge failures retain intermediate files
+and `.ffmpeg.log` for recovery.
+
+For a bounded capture check:
+
+```sh
+./tools/record-camera.sh --record-seconds 4
+```
+
+Original direct-USB mode remains available with `sudo ./build/example 2e7e 0a08`.
+Its **S** key records video only: macOS libusb detaches the whole USB device,
+so the system cannot simultaneously read that device's microphone.
+
+The OpenCV build needs `videoio`, `WITH_AVFOUNDATION=ON` and an H.264 writer.
+For the local source build add `videoio` to `BUILD_LIST`, rebuild OpenCV, then
+rebuild this project.
