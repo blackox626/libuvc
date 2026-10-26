@@ -38,3 +38,35 @@ option(ENABLE_UVC_DEBUGGING "Enable UVC debugging" ON)
 ```
 
 `Clion -> Edit Configurations -> Run with root privileges`
+
+## macOS USB preview
+
+The `example` program captures through libuvc/libusb and displays frames with
+OpenCV. The example requests full-HD MJPEG at 30 fps, preferring 1920×1080.
+If that mode is unavailable, it tries 1080×1920 and rotates the preview to
+1920×1080.
+MJPEG is decoded to RGB and converted to BGR for OpenCV. OpenCV's `core`, `highgui`, and `imgproc` components are
+required; use `OpenCV_DIR` if OpenCV is not installed in a standard location.
+
+```sh
+cmake -S . -B build -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+  -DBUILD_EXAMPLE=ON -DBUILD_TEST=OFF -DENABLE_UVC_DEBUGGING=OFF \
+  -DOpenCV_DIR="$PWD/build/deps/opencv-build"
+cmake --build build -j 4
+sudo ./build/example 2e7e 0a08
+```
+
+The OpenCV directory above is the local OpenCV 4.8 build used on this machine.
+For a system installation, omit `-DOpenCV_DIR` or set it to that installation.
+USB vendor/product IDs are optional hexadecimal arguments. macOS requires root
+privileges to detach its USB camera driver. Close other camera apps first.
+Press **R** to rotate the preview by 90 degrees, and **Q** or **Esc** to stop.
+The separate `tools/preview-camera.sh` uses AVFoundation, not libuvc. Run it on
+macOS with the Swift compiler installed to build and open a native preview:
+
+```sh
+./tools/preview-camera.sh
+```
+
+Allow camera access when macOS prompts. This preview selects `HD CAMERA` or
+another external camera and remembers the rotation set with its toolbar buttons.

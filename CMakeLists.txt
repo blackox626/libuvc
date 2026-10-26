@@ -152,58 +152,24 @@ foreach(target_name IN LISTS UVC_TARGETS)
   endif()
 endforeach()
 
+if(BUILD_EXAMPLE OR BUILD_TEST)
+  enable_language(CXX)
+  find_package(OpenCVPkg REQUIRED COMPONENTS opencv_core opencv_highgui opencv_imgproc)
+  find_package(Threads REQUIRED)
+endif()
+
 if(BUILD_EXAMPLE)
-
-  include_directories ("/opt/homebrew/Cellar/opencv/4.8.0_1/include/opencv4/")
-
-  find_package(OpenCVPkg REQUIRED
-          COMPONENTS
-          opencv_core
-          opencv_highgui
-  )
-
+  set_source_files_properties(src/example.c PROPERTIES LANGUAGE CXX)
   add_executable(example src/example.c)
-
-  target_compile_options(example
-          PRIVATE $<$<COMPILE_LANGUAGE:C,CXX>:-std=c++11 -x c++>
-  )
-
-  find_package(Threads)
-  target_link_libraries(example
-    PRIVATE
-      LibUSB::LibUSB
-      LibUVC::UVC
-      Threads::Threads
-          opencv_core
-          opencv_highgui
-  )
-
+  target_compile_features(example PRIVATE cxx_std_11)
+  target_link_libraries(example PRIVATE LibUVC::UVC Threads::Threads opencv_core opencv_highgui opencv_imgproc)
 endif()
 
 if(BUILD_TEST)
-  # OpenCV defines targets with transitive dependencies not with namespaces but using opencv_ prefix.
-  # This targets provide necessary include directories and linked flags.
-
-  include_directories ("/opt/homebrew/Cellar/opencv/4.8.0_1/include/opencv4/")
-
-#  find_package(OpenCVPkg REQUIRED
-#    COMPONENTS
-#      opencv_core
-#      opencv_highgui
-#  )
-
+  set_source_files_properties(src/test.c PROPERTIES LANGUAGE CXX)
   add_executable(uvc_test src/test.c)
-
-  target_compile_options(uvc_test
-          PRIVATE $<$<COMPILE_LANGUAGE:C,CXX>:-std=c++11 -x c++>
-  )
-
-  target_link_libraries(uvc_test
-    PRIVATE
-      LibUVC::UVC
-      opencv_core
-      opencv_highgui
-  )
+  target_compile_features(uvc_test PRIVATE cxx_std_11)
+  target_link_libraries(uvc_test PRIVATE LibUVC::UVC opencv_core opencv_highgui opencv_imgproc)
 endif()
 
 

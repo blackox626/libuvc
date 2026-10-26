@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>CFBundleExecutable</key><string>CameraPreview</string>
+<key>CFBundleIdentifier</key><string>local.libuvc.CameraPreview</string>
+<key>CFBundleName</key><string>CameraPreview</string>
+<key>CFBundlePackageType</key><string>APPL</string>
+<key>NSCameraUsageDescription</key><string>预览你连接的 USB 摄像头实时画面。</string>
+</dict></plist>

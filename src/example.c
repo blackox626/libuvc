@@ -1,279 +1,119 @@
 #include "libuvc/libuvc.h"
-#include <stdio.h>
-#include <opencv2/highgui/highgui_c.h>
-#include <opencv2/core/core_c.h>
-#include <dispatch/dispatch.h>
-#include "libuvc/libuvc_internal.h"
+#include <opencv2/core.hpp>
+#include <opencv2/highgui.hpp>
+#include <opencv2/imgproc.hpp>
+#include <atomic>
+#include <chrono>
+#include <cstdio>
+#include <cstdlib>
+#include <mutex>
 
-IplImage *cvImg;
-
-/* This callback function runs once per frame. Use it to perform any
- * quick processing you need, or have it put the frame into your application's
- * input queue. If this function takes too long, you'll start losing frames. */
-void cb(uvc_frame_t *frame, void *ptr) {
-    uvc_frame_t *bgr;
-    uvc_error_t ret;
-
-    enum uvc_frame_format *frame_format = (enum uvc_frame_format *) ptr;
-    /* FILE *fp;
-     * static int jpeg_count = 0;
-     * static const char *H264_FILE = "iOSDevLog.h264";
-     * static const char *MJPEG_FILE = ".jpeg";
-     * char filename[16]; */
-
-    /* We'll convert the image from YUV/JPEG to BGR, so allocate space */
-    bgr = uvc_allocate_frame(frame->width * frame->height * 3);
-    bgr->frame_format = UVC_FRAME_FORMAT_BGR;
-    if (!bgr) {
-        printf("unable to allocate bgr frame!\n");
-        return;
+static std::mutex frame_mutex;
+static cv::Mat latest;
+static std::atomic<unsigned> received(0);
+static void cb(uvc_frame_t *frame, void *) {
+    uvc_frame_t *bgr = uvc_allocate_frame(frame->width * frame->height * 3);
+    if (!bgr) return;
+    const bool mjpeg = frame->frame_format == UVC_FRAME_FORMAT_MJPEG;
+    uvc_error_t decoded = mjpeg ? uvc_any2rgb(frame, bgr) : uvc_any2bgr(frame, bgr);
+    if (decoded == UVC_SUCCESS) {
+        cv::Mat view(bgr->height, bgr->width, CV_8UC3, bgr->data,
+                     bgr->step ? bgr->step : bgr->width * 3);
+        if (mjpeg) cv::cvtColor(view, view, cv::COLOR_RGB2BGR);
+        std::lock_guard<std::mutex> lock(frame_mutex);
+        latest = view.clone();
+        ++received;
     }
-
-//  printf("callback! frame_format = %d, width = %d, height = %d, length = %lu, ptr = %p\n",
-//    frame->frame_format, frame->width, frame->height, frame->data_bytes, ptr);
-
-    switch (frame->frame_format) {
-        case UVC_FRAME_FORMAT_H264:
-            /* use `ffplay H264_FILE` to play */
-            /* fp = fopen(H264_FILE, "a");
-             * fwrite(frame->data, 1, frame->data_bytes, fp);
-             * fclose(fp); */
-            break;
-        case UVC_COLOR_FORMAT_MJPEG:
-            /* sprintf(filename, "%d%s", jpeg_count++, MJPEG_FILE);
-             * fp = fopen(filename, "w");
-             * fwrite(frame->data, 1, frame->data_bytes, fp);
-             * fclose(fp); */
-            ret = uvc_any2rgb(frame, bgr);
-            if (ret) {
-                uvc_perror(ret, "uvc_any2rgb");
-                uvc_free_frame(bgr);
-                return;
-            }
-            break;
-        case UVC_COLOR_FORMAT_YUYV:
-            /* Do the BGR conversion */
-
-            ret = uvc_any2bgr(frame, bgr);
-
-            printf("UVC_COLOR_FORMAT_YUYV! %zu \n", bgr->data_bytes);
-
-            if (ret) {
-                uvc_perror(ret, "uvc_any2bgr");
-                uvc_free_frame(bgr);
-                printf("UVC_COLOR_FORMAT_YUYV error ! ");
-                return;
-            }
-            break;
-        default:
-            break;
-    }
-
-    if (frame->sequence % 30 == 0) {
-        printf(" * got image %u\n", frame->sequence);
-    }
-
-    /* Call a user function:
-     *
-     * my_type *my_obj = (*my_type) ptr;
-     * my_user_function(ptr, bgr);
-     * my_other_function(ptr, bgr->data, bgr->width, bgr->height);
-     */
-
-    /* Call a C++ method:
-     *
-     * my_type *my_obj = (*my_type) ptr;
-     * my_obj->my_func(bgr);
-     */
-
-    /* Use opencv.highgui to display the image:*/
-
-    //IplImage* cvImg;
-    cvImg = cvCreateImageHeader(
-            cvSize(bgr->width, bgr->height),
-            IPL_DEPTH_8U,
-            3);
-
-    cvSetData(cvImg, bgr->data, bgr->width * 3);
-
-    cvCvtColor(cvImg, cvImg, CV_RGB2BGR);
-
-//    dispatch_async(dispatch_get_main_queue(), ^{
-//        printf("cvNamedWindow test \n");
-//
-//        cvNamedWindow("Test", CV_WINDOW_AUTOSIZE);
-//        cvShowImage("Test", cvImg);
-//        cvWaitKey(1);
-//
-//        cvReleaseImageHeader(&cvImg);
-//    });
-
-
     uvc_free_frame(bgr);
 }
 
-
-void display() {
-    sleep(1);
-    while (true) {
-
-        if (cvImg) {
-            //printf("cvNamedWindow test \n");
-
-            cvNamedWindow("Test", CV_WINDOW_AUTOSIZE);
-            cvShowImage("Test", cvImg);
-            cvWaitKey(1);
-
-            cvReleaseImageHeader(&cvImg);
-        }
-    }
-}
-
 int main(int argc, char **argv) {
-
-    uvc_context_t *ctx;
-    uvc_device_t *dev;
-    uvc_device_handle_t *devh;
-    uvc_stream_ctrl_t ctrl;
-    uvc_error_t res;
-
-    /* Initialize a UVC service context. Libuvc will set up its own libusb
-     * context. Replace NULL with a libusb_context pointer to run libuvc
-     * from an existing libusb context. */
-    res = uvc_init(&ctx, NULL);
-
-    libusb_set_debug(ctx->usb_ctx, LIBUSB_LOG_LEVEL_WARNING);
-
-    const struct libusb_version *verison = libusb_get_version();
-
-    printf("version info ----->>>>> major: %d,minor: %d,micro: %d,nano: %d,rc:%s,describe: %s \n", verison->major,
-           verison->minor, verison->micro, verison->nano, verison->rc, verison->describe);
-
-    if (res < 0) {
-        uvc_perror(res, "uvc_init");
-        return res;
-    }
-
-    puts("UVC initialized");
-
-    /* Locates the first attached UVC device, stores in dev */
-    res = uvc_find_device(
-            ctx, &dev,
-            0, 0, NULL); /* filter devices: vendor_id, product_id, "serial_num" */
-
-    if (res < 0) {
-        uvc_perror(res, "uvc_find_device"); /* no devices found */
+    // Optional USB vendor/product IDs in hexadecimal; otherwise first UVC device.
+    int vid = argc > 1 ? std::strtol(argv[1], nullptr, 16) : 0;
+    int pid = argc > 2 ? std::strtol(argv[2], nullptr, 16) : 0;
+    uvc_context_t *ctx = nullptr;
+    uvc_device_t *dev = nullptr;
+    uvc_device_handle_t *handle = nullptr;
+    uvc_stream_ctrl_t ctrl = {};
+    bool streaming = false;
+    bool portrait = false;
+    int result = 1;
+    uvc_error_t err = uvc_init(&ctx, nullptr);
+    if (err == UVC_SUCCESS) err = uvc_find_device(ctx, &dev, vid, pid, nullptr);
+    if (err == UVC_SUCCESS) err = uvc_open(dev, &handle);
+    if (err < 0) {
+        uvc_perror(err, "Open UVC camera");
+        if (err == UVC_ERROR_ACCESS)
+            std::fprintf(stderr, "macOS USB capture requires root: sudo ./build/example [VID PID]\n");
     } else {
-        puts("Device found");
-
-        /* Try to open the device: requires exclusive access */
-        res = uvc_open(dev, &devh);
-
-        if (res < 0) {
-            uvc_perror(res, "uvc_open"); /* unable to open device */
-        } else {
-            puts("Device opened");
-
-            /* Print out a message containing all the information that libuvc
-             * knows about the device */
-            uvc_print_diag(devh, stderr);
-
-//      const uvc_format_desc_t *format_desc = uvc_get_format_descs(devh);
-//      const uvc_frame_desc_t *frame_desc = format_desc->frame_descs;
-            enum uvc_frame_format frame_format = UVC_COLOR_FORMAT_MJPEG;
-            int width = 3840;
-            int height = 2160;
-            int fps = 30;
-
-//      switch (format_desc->bDescriptorSubtype) {
-//      case UVC_VS_FORMAT_MJPEG:
-//        frame_format = UVC_COLOR_FORMAT_MJPEG;
-//        break;
-//      case UVC_VS_FORMAT_FRAME_BASED:
-//        frame_format = UVC_FRAME_FORMAT_H264;
-//        break;
-//      default:
-//        frame_format = UVC_FRAME_FORMAT_YUYV;
-//        break;
-//      }
-
-//      if (frame_desc) {
-//        width = frame_desc->wWidth;
-//        height = frame_desc->wHeight;
-//        fps = 10000000 / frame_desc->dwDefaultFrameInterval;
-//      }
-
-            printf("\nFirst format: (%4s) %dx%d %dfps\n", "mjpg", width, height, fps);
-
-            /* Try to negotiate first stream profile */
-            res = uvc_get_stream_ctrl_format_size(
-                    devh, &ctrl, /* result stored in ctrl */
-                    frame_format,
-                    width, height, fps /* width, height, fps */
-            );
-
-            /* Print out the result */
+        uvc_print_diag(handle, stderr);
+        // Support both landscape and portrait full-HD camera configurations.
+        err = uvc_get_stream_ctrl_format_size(handle, &ctrl,
+            UVC_FRAME_FORMAT_MJPEG, 1920, 1080, 30);
+        if (err == UVC_ERROR_INVALID_MODE) {
+            portrait = true;
+            err = uvc_get_stream_ctrl_format_size(handle, &ctrl,
+                UVC_FRAME_FORMAT_MJPEG, 1080, 1920, 30);
+        }
+        if (err == UVC_SUCCESS) {
+            std::printf("Selected UVC mode: MJPEG %dx%d @ 30 fps; display 1920x1080\n",
+                        portrait ? 1080 : 1920, portrait ? 1920 : 1080);
             uvc_print_stream_ctrl(&ctrl, stderr);
-
-            if (res < 0) {
-                uvc_perror(res, "get_mode"); /* device doesn't provide a matching stream */
-            } else {
-                /* Start the video stream. The library will call user function cb:
-                 *   cb(frame, (void *) 12345)
-                 */
-                res = uvc_start_streaming(devh, &ctrl, cb, (void *) 12345, 0);
-
-                if (res < 0) {
-                    uvc_perror(res, "start_streaming"); /* unable to start stream */
-                } else {
-                    puts("Streaming...");
-
-//          /* enable auto exposure - see uvc_set_ae_mode documentation */
-//          puts("Enabling auto exposure ...");
-//          const uint8_t UVC_AUTO_EXPOSURE_MODE_AUTO = 2;
-//          res = uvc_set_ae_mode(devh, UVC_AUTO_EXPOSURE_MODE_AUTO);
-//          if (res == UVC_SUCCESS) {
-//            puts(" ... enabled auto exposure");
-//          } else if (res == UVC_ERROR_PIPE) {
-//            /* this error indicates that the camera does not support the full AE mode;
-//             * try again, using aperture priority mode (fixed aperture, variable exposure time) */
-//            puts(" ... full AE not supported, trying aperture priority mode");
-//            const uint8_t UVC_AUTO_EXPOSURE_MODE_APERTURE_PRIORITY = 8;
-//            res = uvc_set_ae_mode(devh, UVC_AUTO_EXPOSURE_MODE_APERTURE_PRIORITY);
-//            if (res < 0) {
-//              uvc_perror(res, " ... uvc_set_ae_mode failed to enable aperture priority mode");
-//            } else {
-//              puts(" ... enabled aperture priority auto exposure mode");
-//            }
-//          } else {
-//            uvc_perror(res, " ... uvc_set_ae_mode failed to enable auto exposure mode");
-//          }
-
-
-                    display();
-
-                    //sleep(10); /* stream for 10 seconds */
-
-                    /* End the stream. Blocks until last callback is serviced */
-                    uvc_stop_streaming(devh);
-                    puts("Done streaming.");
+        }
+        if (err == UVC_SUCCESS) err = uvc_start_streaming(handle, &ctrl, cb, nullptr, 0);
+        streaming = err == UVC_SUCCESS;
+        if (!streaming) uvc_perror(err, "Start UVC stream");
+    }
+    if (streaming) {
+        try {
+            const char *title = "libuvc USB Preview | R: rotate | Q / Esc: quit";
+            cv::namedWindow(title, cv::WINDOW_NORMAL);
+            cv::resizeWindow(title, 1280, 720);
+            int turns = portrait ? 1 : 0;
+            bool first = true;
+            cv::Mat current;
+            auto lastFrame = std::chrono::steady_clock::now();
+            while (true) {
+                cv::Mat frame;
+                {
+                    std::lock_guard<std::mutex> lock(frame_mutex);
+                    std::swap(frame, latest);
+                }
+                if (!frame.empty()) {
+                    current = frame;
+                    lastFrame = std::chrono::steady_clock::now();
+                    if (first) {
+                        std::printf("UVC preview active: %dx%d\n", frame.cols, frame.rows);
+                        std::fflush(stdout);
+                        first = false;
+                        result = 0;
+                    }
+                }
+                if (!current.empty()) {
+                    cv::Mat display;
+                    if (turns) cv::rotate(current, display, turns == 1 ? cv::ROTATE_90_CLOCKWISE : turns == 2 ? cv::ROTATE_180 : cv::ROTATE_90_COUNTERCLOCKWISE);
+                    else display = current;
+                    cv::imshow(title, display);
+                }
+                int key = cv::waitKey(10);
+                if (key == 'r' || key == 'R') turns = (turns + 1) % 4;
+                if (key == 27 || key == 'q' || cv::getWindowProperty(title, cv::WND_PROP_VISIBLE) < 1) break;
+                if (std::chrono::steady_clock::now() - lastFrame > std::chrono::seconds(10)) {
+                    std::fprintf(stderr, "No decoded UVC frames for 10 seconds\n");
+                    result = 1;
+                    break;
                 }
             }
-
-            /* Release our handle on the device */
-            uvc_close(devh);
-            puts("Device closed");
+            cv::destroyAllWindows();
+        } catch (const cv::Exception &e) {
+            std::fprintf(stderr, "%s\n", e.what());
+            result = 1;
         }
-
-        /* Release the device descriptor */
-        uvc_unref_device(dev);
+        uvc_stop_streaming(handle);
+        std::printf("Received %u decoded UVC frames\n", received.load());
     }
-
-    /* Close the UVC context. This closes and cleans up any existing device handles,
-     * and it closes the libusb context if one was not provided. */
-    uvc_exit(ctx);
-    puts("UVC exited");
-
-    return 0;
+    if (handle) uvc_close(handle);
+    if (dev) uvc_unref_device(dev);
+    if (ctx) uvc_exit(ctx);
+    return result;
 }
-
