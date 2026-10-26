@@ -52,6 +52,7 @@ int main(int argc, char **argv) {
     }
 #endif
     const bool systemAV = argc > 1 && std::strcmp(argv[1], "--system-av") == 0;
+    const bool timedUvc = argc > 1 && std::strcmp(argv[1], "--uvc-record-seconds") == 0;
     double recordSeconds = 0;
     if (systemAV && argc > 2) {
         if (argc != 4 || std::strcmp(argv[2], "--record-seconds") != 0 ||
@@ -60,11 +61,20 @@ int main(int argc, char **argv) {
             return 1;
         }
     }
+    if (timedUvc) {
+        if (argc < 3 || argc > 5 ||
+            (recordSeconds = std::atof(argv[2])) <= 0 || recordSeconds > 3600) {
+            std::fprintf(stderr, "Usage: example --uvc-record-seconds seconds [VID PID]\n");
+            return 1;
+        }
+    }
+    const bool headless = timedUvc;
     cv::VideoCapture systemCamera;
     double recordingFps = 30;
     // Optional USB vendor/product IDs in hexadecimal; otherwise first UVC device.
-    int vid = argc > 1 ? std::strtol(argv[1], nullptr, 16) : 0;
-    int pid = argc > 2 ? std::strtol(argv[2], nullptr, 16) : 0;
+    const int deviceArg = timedUvc ? 3 : 1;
+    int vid = argc > deviceArg ? std::strtol(argv[deviceArg], nullptr, 16) : 0;
+    int pid = argc > deviceArg + 1 ? std::strtol(argv[deviceArg + 1], nullptr, 16) : 0;
     uvc_context_t *ctx = nullptr;
     uvc_device_t *dev = nullptr;
     uvc_device_handle_t *handle = nullptr;
@@ -125,8 +135,8 @@ int main(int argc, char **argv) {
                 : "libuvc USB Preview | S: silent MP4 | R: rotate | Q: quit";
             Mp4Recorder recorder;
             cv::Mat display;
-            cv::namedWindow(title, cv::WINDOW_NORMAL);
-            cv::resizeWindow(title, 1280, 720);
+            if (!headless) cv::namedWindow(title, cv::WINDOW_NORMAL);
+            if (!headless) cv::resizeWindow(title, 1280, 720);
             int turns = portrait ? 1 : 0;
             bool first = true;
             cv::Mat current;
@@ -150,7 +160,7 @@ int main(int argc, char **argv) {
                     current = frame;
                     lastFrame = std::chrono::steady_clock::now();
                     if (first) {
-                        std::printf("%s preview active: %dx%d\n", systemAV ? "System AV" : "UVC", frame.cols, frame.rows);
+                        std::printf("%s %s: %dx%d\n", headless ? "UVC recording" : (systemAV ? "System AV preview" : "UVC preview"), headless ? "started" : "active", frame.cols, frame.rows);
                         std::fflush(stdout);
                         first = false;
                         result = 0;
@@ -166,11 +176,12 @@ int main(int argc, char **argv) {
                         catch (const std::exception &finalizeError) {
                             std::fprintf(stderr, "%s\n", finalizeError.what());
                         }
-                        cv::setWindowTitle(title, title);
+                        if (!headless) cv::setWindowTitle(title, title);
                     }
-                    cv::imshow(title, display);
+                    if (!headless) cv::imshow(title, display);
                 }
-                int key = cv::waitKey(10);
+                if (headless) std::this_thread::sleep_for(std::chrono::milliseconds(10));
+                int key = headless ? -1 : cv::waitKey(10);
                 if (recordSeconds > 0 && !autoStarted && !display.empty()) key = 's';
                 if (key == 's' || key == 'S') {
                     if (recorder.active()) {
@@ -180,7 +191,7 @@ int main(int argc, char **argv) {
                         } catch (const std::exception &e) {
                             std::fprintf(stderr, "Cannot finalize recording: %s\n", e.what());
                         }
-                        cv::setWindowTitle(title, title);
+                        if (!headless) cv::setWindowTitle(title, title);
                     } else if (!display.empty()) {
                         try {
                             recorder.start(display.size(), recordingFps, systemAV);
@@ -189,7 +200,7 @@ int main(int argc, char **argv) {
                                 autoStart = std::chrono::steady_clock::now();
                             }
                             recorder.write(display);
-                            cv::setWindowTitle(title, "REC | S: stop | Q: save and quit | " + recorder.path);
+                            if (!headless) cv::setWindowTitle(title, "REC | S: stop | Q: save and quit | " + recorder.path);
                             std::printf("Recording MP4: %s\n", recorder.path.c_str());
                         } catch (const std::exception &e) {
                             try { recorder.stop(); } catch (...) {}
@@ -202,7 +213,7 @@ int main(int argc, char **argv) {
                 if (autoStarted && std::chrono::duration<double>(std::chrono::steady_clock::now() - autoStart).count() >= recordSeconds) break;
                 // Keep the encoded dimensions and orientation constant per file.
                 if ((key == 'r' || key == 'R') && !recorder.active()) turns = (turns + 1) % 4;
-                if (key == 27 || key == 'q' || cv::getWindowProperty(title, cv::WND_PROP_VISIBLE) < 1) break;
+                if (!headless && (key == 27 || key == 'q' || cv::getWindowProperty(title, cv::WND_PROP_VISIBLE) < 1)) break;
                 if (std::chrono::steady_clock::now() - lastFrame > std::chrono::seconds(10)) {
                     std::fprintf(stderr, "No decoded UVC frames for 10 seconds\n");
                     result = 1;
@@ -213,7 +224,7 @@ int main(int argc, char **argv) {
                 recorder.stop();
                 std::printf("Saved MP4: %s\n", recorder.path.c_str());
             }
-            cv::destroyAllWindows();
+            if (!headless) cv::destroyAllWindows();
         } catch (const std::exception &e) {
             std::fprintf(stderr, "%s\n", e.what());
             result = 1;
